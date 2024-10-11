@@ -1,0 +1,7 @@
+; exports.def : Declares the module parameters.
+
+LIBRARY      "HVCPDriver.DLL"
+
+EXPORTS
+    DllGetClassObject   PRIVATE
+
