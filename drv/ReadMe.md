@@ -31,7 +31,7 @@ Windows下虚拟串口驱动。
 注意:
 
 - 一定要使用管理员权限的cmd，进入install.cmd所在目录后再运行install.cmd,再某些高版本windows中直接运行install.cmd可能不能正确安装。
-- 若仅是简单测试，可再虚拟机中安装windows xp及windows 7的32位版本(i386)进行测试。
+- 若仅是简单测试，可在虚拟机中安装windows xp及windows 7的32位版本(i386)进行测试。
 
 ## 卸载
 
