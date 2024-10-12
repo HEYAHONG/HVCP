@@ -113,7 +113,7 @@ class CMyQueue :
             }
             else
             {
-                if(default_handle->last_read < Handle[i].last_read)
+                if(default_handle->last_read > Handle[i].last_read)
                 {
                     default_handle= &Handle[i];
                 }
