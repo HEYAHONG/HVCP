@@ -8,7 +8,7 @@ Class=Ports
 ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318}
 Provider=%MSFTUMDF%
 CatalogFile=WUDF.cat
-DriverVer=10/11/2024,6.1.7600.16385
+DriverVer=10/12/2024,6.1.7600.16385
 
 [Manufacturer]
 %MSFTUMDF%=Microsoft,NTx86

@@ -13,6 +13,19 @@ Windows下虚拟串口驱动。
 - 同一进程不可多次打开该串口，否则会出问题。
 - 某些串口工具可能不兼容。
 
+# 兼容列表
+
+以下表明可兼容的应用及库(若未说明一般指最新版):
+
+- [putty](https://github.com/github/putty.git)
+- [Qt](https://www.qt.io)（QSerialPort）
+
+# 不兼容列表
+
+以下表明不可兼容的应用及库:
+
+- SSCOM 5.13.1（BY 大虾丁丁）:可发送数据，不可接收数据。
+
 # 目录说明
 
 - [prebuilt](prebuilt):预构建的二进制文件，包括需要用到的工具、DDK的redist包中的文件及由源代码编译的驱动文件
