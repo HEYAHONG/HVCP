@@ -145,10 +145,6 @@ size_t HVCP_Read(const char *device,void *buffer,size_t length)
     {
         return ret;
     }
-    if(!HVCP_IsHVCPPort(device))
-    {
-        return ret;
-    }
     if(strlen(device) > 8)
     {
         return ret;
