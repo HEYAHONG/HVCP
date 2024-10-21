@@ -19,19 +19,15 @@ void HVCP_Enum(void(*OnEnum)(const char* device,void *usr),void *usr)
     {
         return;
     }
-    char description[128]= {0};
     SP_DEVINFO_DATA device_info_data = { 0 };
     device_info_data.cbSize = sizeof(device_info_data);
-    HDEVINFO device_info= {0};
-    int i=0;
-
-    device_info = SetupDiGetClassDevs(NULL, 0, 0,DIGCF_PRESENT | DIGCF_ALLCLASSES);
+    HDEVINFO    device_info = SetupDiGetClassDevs(NULL, 0, 0,DIGCF_PRESENT | DIGCF_ALLCLASSES);
     if (device_info == INVALID_HANDLE_VALUE)
     {
         return;
     }
 
-    for (i = 0; SetupDiEnumDeviceInfo(device_info, i, &device_info_data); i++)
+    for (int i = 0; SetupDiEnumDeviceInfo(device_info, i, &device_info_data); i++)
     {
         {
             //查找硬件Id
