@@ -71,8 +71,14 @@ install(
 )
 
 #测试
-add_executable(test ${CMAKE_CURRENT_SOURCE_DIR}/test/test.cpp)
-target_link_libraries(test ${PROJECT_NAME})
+add_executable(HVCPEnum ${CMAKE_CURRENT_SOURCE_DIR}/test/HVCPEnum.cpp)
+target_link_libraries(HVCPEnum ${PROJECT_NAME})
+
+add_executable(HVCPRead ${CMAKE_CURRENT_SOURCE_DIR}/test/HVCPRead.cpp)
+target_link_libraries(HVCPRead ${PROJECT_NAME})
+
+add_executable(HVCPWrite ${CMAKE_CURRENT_SOURCE_DIR}/test/HVCPWrite.cpp)
+target_link_libraries(HVCPWrite ${PROJECT_NAME})
 
 add_executable(DriverAdd ${CMAKE_CURRENT_SOURCE_DIR}/test/DriverAdd.cpp)
 target_link_libraries(DriverAdd ${PROJECT_NAME})
