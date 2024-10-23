@@ -71,6 +71,12 @@ install(
 )
 
 #测试
-file(GLOB TEST_C_CXX_FILE test/*.cpp test/*.c test/*.h)
-add_executable(test ${TEST_C_CXX_FILE})
+add_executable(test ${CMAKE_CURRENT_SOURCE_DIR}/test/test.cpp)
 target_link_libraries(test ${PROJECT_NAME})
+
+add_executable(DriverAdd ${CMAKE_CURRENT_SOURCE_DIR}/test/DriverAdd.cpp)
+target_link_libraries(DriverAdd ${PROJECT_NAME})
+
+
+add_executable(DriverRemove ${CMAKE_CURRENT_SOURCE_DIR}/test/DriverRemove.cpp)
+target_link_libraries(DriverRemove ${PROJECT_NAME})

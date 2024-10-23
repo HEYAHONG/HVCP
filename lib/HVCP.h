@@ -41,6 +41,22 @@ size_t HVCP_Write(const char *device,const void *buffer,size_t length);
  */
 size_t HVCP_Read(const char *device,void *buffer,size_t length);
 
+
+/** \brief 移除HVCP驱动(移除一个虚拟串口)。注意:此函数需要调用的进程具有管理员权限。
+ *
+ * \param device const char* 设备名称,注意:设备名称中的字母均需大写。
+ * \return int 0=成功，-1=失败
+ *
+ */
+int HVCP_DriverRemove(const char *device);
+
+/** \brief 添加一个HVCP虚拟串口。注意:此函数需要调用的进程具有管理员权限。此函数仅添加设备节点，若用户未安装过HVCP驱动(64位系统需要禁用驱动强制签名)，将不会成功。
+ *
+ * \return int 0=成功，-1=失败
+ *
+ */
+int HVCP_DriverAdd(void);
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus
