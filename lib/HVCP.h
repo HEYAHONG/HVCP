@@ -21,6 +21,15 @@ extern "C"
  */
 void HVCP_Enum(void(*OnEnum)(const char * device,void *usr),void *usr);
 
+
+/** \brief HVCP设备是否存在
+ *
+ * \param device const char* 设备名称,注意:设备名称中的字母均需大写。
+ * \return int 0=成功(存在)，-1=失败（不存在）
+ *
+ */
+int HVCP_Exists(const char *device);
+
 /** \brief 写入HVCP数据。
  *
  * \param device const char* 设备名称,注意:设备名称中的字母均需大写。

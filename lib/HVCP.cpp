@@ -103,6 +103,11 @@ static bool HVCP_IsHVCPPort(const char * device)
     return ret;
 }
 
+int HVCP_Exists(const char *device)
+{
+    return HVCP_IsHVCPPort(device)?0:-1;
+}
+
 size_t HVCP_Write(const char *device,const void *buffer,size_t length)
 {
     size_t ret=0;
