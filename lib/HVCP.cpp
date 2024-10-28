@@ -306,9 +306,9 @@ int HVCP_DriverAdd(void)
     {
         goto final_clean;
     }
+    //安装驱动，此步骤要求系统中已存在HVCP驱动（即用户已安装成功HVCP驱动,即驱动包已添加到系统,64位系统需要禁用驱动强制签名安装,此操作无需禁用驱动强制签名）
     if(DiInstallDeviceFn==NULL)
     {
-        //安装驱动，此步骤要求系统中已存在HVCP驱动（即用户已安装成功HVCP驱动,即驱动包已添加到系统,64位系统需要禁用驱动强制签名安装,此操作无需禁用驱动强制签名）
         if(!SetupDiInstallDevice(DeviceInfoSet,&DeviceInfoData))
         {
             goto final_clean;
