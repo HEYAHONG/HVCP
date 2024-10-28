@@ -24,7 +24,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 file(GLOB HVCP_C_CXX_FILES *.h *.cpp *.c *.hpp *.cxx)
 add_library(${PROJECT_NAME} SHARED ${HVCP_C_CXX_FILES})
-target_link_libraries(${PROJECT_NAME} setupapi cfgmgr32)
+target_link_libraries(${PROJECT_NAME} setupapi cfgmgr32 ole32)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include(GNUInstallDirs)
 install(FILES HVCP.h
