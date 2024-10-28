@@ -13,6 +13,36 @@
 #include <setupapi.h>
 #include <cfgmgr32.h>
 
+static HMODULE newdev_dll=NULL;
+typedef BOOL WINAPI (*DiInstallDeviceProto)(HWND hwndParent,HDEVINFO DeviceInfoSet,PSP_DEVINFO_DATA DeviceInfoData,PSP_DRVINFO_DATA DriverInfoData,DWORD Flags,PBOOL NeedReboot);
+static DiInstallDeviceProto DiInstallDeviceFn=NULL;
+
+
+BOOL WINAPI DllMain(HANDLE hInstance, ULONG Command, LPVOID Reserved)
+{
+    switch(Command)
+    {
+    case DLL_PROCESS_ATTACH:
+    {
+        newdev_dll=LoadLibraryA("newdev.dll");
+        if(newdev_dll!=NULL)
+        {
+            DiInstallDeviceFn=(DiInstallDeviceProto)GetProcAddress(newdev_dll,"DiInstallDevice");
+        }
+    }
+    break;
+    case DLL_PROCESS_DETACH:
+    {
+        if(newdev_dll!=NULL)
+        {
+            FreeLibrary(newdev_dll);
+        }
+    }
+    break;
+    }
+    return TRUE;
+}
+
 void HVCP_Enum(void(*OnEnum)(const char* device,void *usr),void *usr)
 {
     if (OnEnum == NULL)
@@ -276,9 +306,17 @@ int HVCP_DriverAdd(void)
     {
         goto final_clean;
     }
+    if(DiInstallDeviceFn==NULL)
     {
         //安装驱动，此步骤要求系统中已存在HVCP驱动（即用户已安装成功HVCP驱动,即驱动包已添加到系统,64位系统需要禁用驱动强制签名安装,此操作无需禁用驱动强制签名）
         if(!SetupDiInstallDevice(DeviceInfoSet,&DeviceInfoData))
+        {
+            goto final_clean;
+        }
+    }
+    else
+    {
+        if(!DiInstallDeviceFn(NULL,DeviceInfoSet,&DeviceInfoData,NULL,0,NULL))
         {
             goto final_clean;
         }
