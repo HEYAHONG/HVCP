@@ -14,8 +14,8 @@
 #include <cfgmgr32.h>
 
 static HMODULE newdev_dll=NULL;
-typedef BOOL WINAPI (*DiInstallDeviceProto)(HWND hwndParent,HDEVINFO DeviceInfoSet,PSP_DEVINFO_DATA DeviceInfoData,PSP_DRVINFO_DATA DriverInfoData,DWORD Flags,PBOOL NeedReboot);
-static DiInstallDeviceProto DiInstallDeviceFn=NULL;
+typedef BOOL WINAPI DiInstallDeviceProto(HWND hwndParent,HDEVINFO DeviceInfoSet,PSP_DEVINFO_DATA DeviceInfoData,PSP_DRVINFO_DATA DriverInfoData,DWORD Flags,PBOOL NeedReboot);
+static DiInstallDeviceProto * DiInstallDeviceFn=NULL;
 
 
 BOOL WINAPI DllMain(HANDLE hInstance, ULONG Command, LPVOID Reserved)
@@ -27,7 +27,7 @@ BOOL WINAPI DllMain(HANDLE hInstance, ULONG Command, LPVOID Reserved)
         newdev_dll=LoadLibraryA("newdev.dll");
         if(newdev_dll!=NULL)
         {
-            DiInstallDeviceFn=(DiInstallDeviceProto)GetProcAddress(newdev_dll,"DiInstallDevice");
+            DiInstallDeviceFn=(DiInstallDeviceProto*)GetProcAddress(newdev_dll,"DiInstallDevice");
         }
     }
     break;
