@@ -6,14 +6,30 @@
 #include "HVCP.h"
 #include <thread>
 #include <libserialport.h>
+#include <windows.h>
 
+bool IsServiceMode=false;
 static int main_log(const char *fmt,...)
 {
     int ret=0;
     va_list va;
     va_start(va,fmt);
+    if(!IsServiceMode)
     {
         ret=vprintf(fmt,va);
+    }
+    else
+    {
+        CHAR Msg[4096];
+        Msg[(sizeof(Msg)/sizeof(Msg[0]))-1]='\0';
+        vsnprintf(Msg,(sizeof(Msg)/sizeof(Msg[0]))-1,fmt,va);
+        HANDLE hEventSource=RegisterEventSourceA(NULL,"HVCP_PortRedirect");
+        if(hEventSource!=NULL)
+        {
+            LPTSTR lpszString[1]= {Msg};
+            ReportEventA(hEventSource,EVENTLOG_INFORMATION_TYPE,0,0,NULL,1,0,(LPCSTR*)&lpszString[0],NULL);
+            DeregisterEventSource(hEventSource);
+        }
     }
     va_end(va);
 
@@ -796,6 +812,17 @@ static int cmd_output(int argc,const char *argv[])
 int main(int argc,const char * argv[])
 {
     arg_parse(argc,argv);
+    {
+        char username[256]= {0};
+        DWORD len=sizeof(username)-1;
+        GetUserNameA(username,&len);
+        if(strcmp(username,"SYSTEM")==0)
+        {
+            //SYSTEM,服务模式
+            IsServiceMode=true;
+        }
+        main_log("User is %s\r\n",username);
+    }
     if(strlen(input_device)>0)
     {
         main_log("input_device is %s!\r\n",input_device);
