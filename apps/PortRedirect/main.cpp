@@ -809,6 +809,20 @@ static int cmd_output(int argc,const char *argv[])
     return 0;
 }
 
+//配置id,用于区分不同的服务
+static char config_id[4096]= {0};
+static const char *get_config_id()
+{
+    if(strcmp(input_device,output_device) < 0)
+    {
+        snprintf(config_id,sizeof(config_id)-1,"%s%d%d%c%d%s%d%d%c%d",input_device,input_baudrate,input_databits,input_parity,input_stopbits,output_device,output_baudrate,output_databits,output_parity,output_stopbits);
+    }
+    else
+    {
+        snprintf(config_id,sizeof(config_id)-1,"%s%d%d%c%d%s%d%d%c%d",output_device,output_baudrate,output_databits,output_parity,output_stopbits,input_device,input_baudrate,input_databits,input_parity,input_stopbits);
+    }
+    return config_id;
+}
 int main(int argc,const char * argv[])
 {
     arg_parse(argc,argv);
@@ -821,7 +835,7 @@ int main(int argc,const char * argv[])
             //SYSTEM,服务模式
             IsServiceMode=true;
         }
-        main_log("User is %s\r\n",username);
+        main_log("User is %s,config_id is %s\r\n",username,get_config_id());
     }
     if(strlen(input_device)>0)
     {
