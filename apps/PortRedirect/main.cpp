@@ -21,8 +21,16 @@ static int main_log(const char *fmt,...)
 }
 
 static int cmd_help(int argc,const char *argv[]);
+static int cmd_input_baudrate(int argc,const char *argv[]);
+static int cmd_input_databits(int argc,const char *argv[]);
+static int cmd_input_parity(int argc,const char *argv[]);
+static int cmd_input_stopbits(int argc,const char *argv[]);
 static int cmd_input(int argc,const char *argv[]);
 static int cmd_output(int argc,const char *argv[]);
+static int cmd_output_baudrate(int argc,const char *argv[]);
+static int cmd_output_databits(int argc,const char *argv[]);
+static int cmd_output_parity(int argc,const char *argv[]);
+static int cmd_output_stopbits(int argc,const char *argv[]);
 static struct
 {
     const char * cmd;
@@ -47,18 +55,77 @@ static struct
         "input device"
     },
     {
+        "--input-baudrate",
+        "-ib",
+        cmd_input_baudrate,
+        "--input-baudrate=[baudrate]  / -ib [baudrate] ",
+        "input baudrate"
+    },
+    {
+        "--input-databits",
+        "-id",
+        cmd_input_databits,
+        "--input-databits=[databits]  / -id [databits] ",
+        "input databits"
+    },
+    {
+        "--input-parity",
+        "-ip",
+        cmd_input_parity,
+        "--input-parity=[ N|E|O|M|S]  / -ip [ N|E|O|M|S] ",
+        "input parity"
+    },
+    {
+        "--input-stopbits",
+        "-is",
+        cmd_input_stopbits,
+        "--input-stopbits=[stopbits]  / -is [stopbits] ",
+        "input stopbits"
+    },
+    {
         "--output",
         "-o",
         cmd_output,
         "--output=[device]  / -o [device] ",
         "output device"
+    },
+    {
+        "--output-baudrate",
+        "-ob",
+        cmd_output_baudrate,
+        "--output-baudrate=[baudrate]  / -ob [baudrate] ",
+        "output baudrate"
+    }
+    ,
+    {
+        "--output-databits",
+        "-od",
+        cmd_output_databits,
+        "--output-databits=[databits]  / -od [databits] ",
+        "output databits"
+    }
+    ,
+    {
+        "--output-parity",
+        "-op",
+        cmd_output_parity,
+        "--output-parity=[ N|E|O|M|S]  / -op [ N|E|O|M|S] ",
+        "output parity"
+    }
+    ,
+    {
+        "--output-stopbits",
+        "-os",
+        cmd_output_stopbits,
+        "--output-stopbits=[stopbits]  / -os [stopbits] ",
+        "output stopbits"
     }
 };
 
 static int cmd_help(int argc,const char *argv[])
 {
-    const size_t cmd_max_len=8;
-    const size_t usage_max_len=36;
+    const size_t cmd_max_len=16;
+    const size_t usage_max_len=50;
     {
         main_log("\r\n%s [options]\r\n",argv[0]);
     }
@@ -190,9 +257,9 @@ static void com_name_strip(char *name)
         }
     }
 }
-static bool check_com_port(const char *port)
+static bool check_com_port(const char *portname,int baudrate=115200,int databits=8,char parity='N',int stopbits=1)
 {
-    if(port==NULL || port[0]=='\0')
+    if(portname==NULL || portname[0]=='\0')
     {
         return false;
     }
@@ -205,9 +272,67 @@ static bool check_com_port(const char *port)
     bool ret=false;
     for(size_t i=0; port_list[i]!=NULL; i++)
     {
-        if(strcmp(strstr(port,"COM"),strstr(sp_get_port_name(port_list[i]),"COM"))==0)
+        struct sp_port *port=port_list[i];
+        if(strcmp(strstr(portname,"COM"),strstr(sp_get_port_name(port),"COM"))==0)
         {
             ret=true;
+            if(sp_open(port,SP_MODE_READ_WRITE)!=SP_OK)
+            {
+                ret=false;
+            }
+            else
+            {
+                if(SP_OK!=sp_set_baudrate(port,baudrate))
+                {
+                    ret=false;
+                }
+                if(SP_OK!=sp_set_bits(port,databits))
+                {
+                    ret=false;
+                }
+                {
+                    sp_parity _parity=SP_PARITY_NONE;
+                    switch(parity)
+                    {
+                    case 'N':
+                    {
+                        _parity=SP_PARITY_NONE;
+                    }
+                    break;
+                    case 'O':
+                    {
+                        _parity=SP_PARITY_ODD;
+                    }
+                    break;
+                    case 'E':
+                    {
+                        _parity=SP_PARITY_EVEN;
+                    }
+                    break;
+                    case 'M':
+                    {
+                        _parity=SP_PARITY_MARK;
+                    }
+                    break;
+                    case 'S':
+                    {
+                        _parity=SP_PARITY_SPACE;
+                    }
+                    break;
+                    default:
+                        break;
+                    }
+                    if(SP_OK!=sp_set_parity(port,_parity))
+                    {
+                        ret=false;
+                    }
+                }
+                if(SP_OK!=sp_set_stopbits(port,stopbits))
+                {
+                    ret=false;
+                }
+                sp_close(port);
+            }
             break;
         }
     }
@@ -252,6 +377,378 @@ static int cmd_input(int argc,const char *argv[])
 
     }
     com_name_strip(input_device);
+    return 0;
+}
+
+static int input_baudrate=115200;
+static int cmd_input_baudrate(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--input-baudrate",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    input_baudrate=atoi(para);
+                    break;
+                }
+            }
+            if(strcmp("-ib",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    input_baudrate=atoi(argv[i+1]);
+                    break;
+                }
+            }
+        }
+
+    }
+    if(input_baudrate<=0)
+    {
+        input_baudrate=115200;
+    }
+    return 0;
+}
+
+static int input_databits=8;
+static int cmd_input_databits(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--input-databits",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    input_databits=atoi(para);
+                    break;
+                }
+            }
+            if(strcmp("-id",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    input_databits=atoi(argv[i+1]);
+                    break;
+                }
+            }
+        }
+
+    }
+    if(input_databits<=5 || input_databits > 8)
+    {
+        input_databits=8;
+    }
+    return 0;
+}
+
+static char input_parity='N';
+static int cmd_input_parity(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--input-parity",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    input_parity=para[0];
+                    break;
+                }
+            }
+            if(strcmp("-ip",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    input_parity=argv[i+1][0];
+                    break;
+                }
+            }
+        }
+
+    }
+    switch(input_parity)
+    {
+    case 'N':
+    case 'O':
+    case 'E':
+    case 'M':
+    case 'S':
+        break;
+    default:
+    {
+        input_parity='N';
+    }
+    break;
+    }
+    return 0;
+}
+
+static int input_stopbits=1;
+static int cmd_input_stopbits(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--input-stopbits",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    input_stopbits=atoi(para);
+                    break;
+                }
+            }
+            if(strcmp("-is",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    input_stopbits=atoi(argv[i+1]);
+                    break;
+                }
+            }
+        }
+
+    }
+    if(input_stopbits<=0 || input_stopbits > 2)
+    {
+        input_stopbits=1;
+    }
+    return 0;
+}
+
+static int output_baudrate=115200;
+static int cmd_output_baudrate(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--output-baudrate",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    output_baudrate=atoi(para);
+                    break;
+                }
+            }
+            if(strcmp("-ob",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    output_baudrate=atoi(argv[i+1]);
+                    break;
+                }
+            }
+        }
+
+    }
+    if(output_baudrate<=0)
+    {
+        output_baudrate=115200;
+    }
+    return 0;
+}
+
+static int output_databits=8;
+static int cmd_output_databits(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--output-databits",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    output_databits=atoi(para);
+                    break;
+                }
+            }
+            if(strcmp("-od",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    output_databits=atoi(argv[i+1]);
+                    break;
+                }
+            }
+        }
+
+    }
+    if(output_databits<=5 || output_databits > 8)
+    {
+        output_databits=8;
+    }
+    return 0;
+}
+
+static char output_parity='N';
+static int cmd_output_parity(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--output-parity",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    output_parity=para[0];
+                    break;
+                }
+            }
+            if(strcmp("-op",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    output_parity=argv[i+1][0];
+                    break;
+                }
+            }
+        }
+
+    }
+    switch(output_parity)
+    {
+    case 'N':
+    case 'O':
+    case 'E':
+    case 'M':
+    case 'S':
+        break;
+    default:
+    {
+        output_parity='N';
+    }
+    break;
+    }
+    return 0;
+}
+
+static int output_stopbits=1;
+static int cmd_output_stopbits(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--output-stopbits",temp)==0)
+            {
+                if(para!=NULL)
+                {
+                    output_stopbits=atoi(para);
+                    break;
+                }
+            }
+            if(strcmp("-os",argv[i])==0)
+            {
+                if((i+1)<argc)
+                {
+                    output_stopbits=atoi(argv[i+1]);
+                    break;
+                }
+            }
+        }
+
+    }
+    if(output_stopbits<=0 || output_stopbits > 2)
+    {
+        output_stopbits=1;
+    }
     return 0;
 }
 
@@ -308,7 +805,8 @@ int main(int argc,const char * argv[])
         }
         else
         {
-            if(!check_com_port(input_device))
+            main_log("input config:baudrate=%d,databits=%d,parity=%c,stopbits=%d\r\n",input_baudrate,input_databits,input_parity,input_stopbits);
+            if(!check_com_port(input_device,input_baudrate,input_databits,input_parity,input_stopbits))
             {
                 main_log("check %s port failed!\r\n",input_device);
                 return -1;
@@ -322,6 +820,11 @@ int main(int argc,const char * argv[])
     }
     if(strlen(output_device)>0)
     {
+        if(strcmp(strstr(input_device,"COM"),strstr(output_device,"COM"))==0)
+        {
+            main_log("output_device can not be input_device!\r\n",output_device);
+            return -1;
+        }
         main_log("output_device is %s!\r\n",output_device);
         if(HVCP_Exists(output_device)==0)
         {
@@ -329,7 +832,8 @@ int main(int argc,const char * argv[])
         }
         else
         {
-            if(!check_com_port(output_device))
+            main_log("output config:baudrate=%d,databits=%d,parity=%c,stopbits=%d\r\n",output_baudrate,output_databits,output_parity,output_stopbits);
+            if(!check_com_port(output_device,output_baudrate,output_databits,output_parity,output_stopbits))
             {
                 main_log("check %s port failed!\r\n",output_device);
                 return -1;
