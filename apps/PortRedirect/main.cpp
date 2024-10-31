@@ -7,6 +7,8 @@
 #include <thread>
 #include <libserialport.h>
 #include <windows.h>
+#include "service.h"
+#include <string>
 
 bool IsServiceMode=false;
 static int main_log(const char *fmt,...)
@@ -47,6 +49,7 @@ static int cmd_output_baudrate(int argc,const char *argv[]);
 static int cmd_output_databits(int argc,const char *argv[]);
 static int cmd_output_parity(int argc,const char *argv[]);
 static int cmd_output_stopbits(int argc,const char *argv[]);
+static int cmd_uninstall(int argc,const char *argv[]);
 static struct
 {
     const char * cmd;
@@ -135,6 +138,14 @@ static struct
         cmd_output_stopbits,
         "--output-stopbits=[stopbits]  / -os [stopbits] ",
         "output stopbits"
+    }
+    ,
+    {
+        "--uninstall",
+        "-ui",
+        cmd_uninstall,
+        "--uninstall  / -ui ",
+        "uninstall"
     }
 };
 
@@ -809,6 +820,44 @@ static int cmd_output(int argc,const char *argv[])
     return 0;
 }
 
+static bool uninstall_mode=false;
+static int cmd_uninstall(int argc,const char *argv[])
+{
+    for(int i=0; i<argc; i++)
+    {
+        {
+            char temp[256]= {0};
+            const char *para=NULL;
+            strcat_s(temp,sizeof(temp)-1,argv[i]);
+            for(size_t k=0; k<strlen(temp); k++)
+            {
+                if(temp[k]=='=')
+                {
+                    temp[k]='\0';
+                    para=&temp[k+1];
+                    break;
+                }
+            }
+            if(strcmp("--uninstall",temp)==0)
+            {
+                {
+                    uninstall_mode=true;
+                    break;
+                }
+            }
+            if(strcmp("-ui",argv[i])==0)
+            {
+                {
+                    uninstall_mode=true;
+                    break;
+                }
+            }
+        }
+
+    }
+    return 0;
+}
+
 //配置id,用于区分不同的服务
 static char config_id[4096]= {0};
 static const char *get_config_id()
@@ -823,6 +872,9 @@ static const char *get_config_id()
     }
     return config_id;
 }
+
+static SERVICE_STATUS m_status= {0};
+static bool service_stop_pending=false;
 int main(int argc,const char * argv[])
 {
     arg_parse(argc,argv);
@@ -885,6 +937,116 @@ int main(int argc,const char * argv[])
     {
         main_log("output_device is not set!\r\n");
         return -1;
+    }
+    if(!IsServiceMode)
+    {
+        if(uninstall_mode)
+        {
+            main_log("service uninstall!\r\n");
+            if(!ServiceUnistall(get_config_id()))
+            {
+                main_log("service uninstall failed!\r\n");
+            }
+        }
+        else
+        {
+            main_log("service install!\r\n");
+            if(ServiceIsInstalled(get_config_id()))
+            {
+                //服务已安装
+                if(!ServiceStart(get_config_id()))
+                {
+                    main_log("service not started!\r\n");
+                }
+
+            }
+            else
+            {
+                //服务未安装
+                std::string service_cmd;
+                {
+                    CHAR file_path[_MAX_PATH]= {0};
+                    GetModuleFileNameA(NULL,file_path,sizeof(file_path)-1);
+                    service_cmd+=file_path;
+                }
+                for(size_t i=1; i<argc; i++)
+                {
+                    service_cmd+=" ";
+                    service_cmd+=argv[i];
+                }
+                main_log("service:name=%s,cmd=%s\r\n",get_config_id(),service_cmd.c_str());
+                if(!ServiceInstall(get_config_id(),"HVCP PortRedirect",service_cmd.c_str()))
+                {
+                    main_log("service install failed!\r\n");
+                }
+                else
+                {
+                    if(!ServiceStart(get_config_id()))
+                    {
+                        main_log("service not started!\r\n");
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        auto ServiceMain=[](DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)->void
+        {
+            m_status.dwServiceType= SERVICE_WIN32_OWN_PROCESS;
+            m_status.dwCurrentState=SERVICE_START_PENDING;
+            m_status.dwControlsAccepted=SERVICE_ACCEPT_STOP;
+            auto Handler=[](DWORD dwOpcode)->void
+            {
+                switch(dwOpcode)
+                {
+                case SERVICE_CONTROL_STOP:
+                {
+                    service_stop_pending=true;
+                }
+                break;
+                default:
+                {
+
+                }
+                break;
+                }
+            };
+            SERVICE_STATUS_HANDLE hServiceStatusHandle=RegisterServiceCtrlHandlerA(get_config_id(),Handler);
+            if(hServiceStatusHandle==NULL)
+            {
+                main_log("handler not installed!");
+                return;
+            }
+            m_status.dwWin32ExitCode=S_OK;
+            SetServiceStatus(hServiceStatusHandle,&m_status);
+            {
+                //运行服务,应当是一个死循环，退出后服务退出。
+                m_status.dwCurrentState=SERVICE_RUNNING;
+                SetServiceStatus(hServiceStatusHandle,&m_status);
+                while(!service_stop_pending)
+                {
+                    Sleep(500);
+                }
+            }
+            m_status.dwCurrentState=SERVICE_STOPPED;
+            SetServiceStatus(hServiceStatusHandle,&m_status);
+
+        };
+        SERVICE_TABLE_ENTRY st[]=
+        {
+            {
+                (LPSTR)get_config_id(),ServiceMain
+            },
+            {
+                NULL,NULL
+            }
+        };
+        if(!StartServiceCtrlDispatcherA(st))
+        {
+            main_log("StartServiceCtrlDispatcher failed!\r\n");
+        }
+
     }
     return 0;
 }
