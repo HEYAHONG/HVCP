@@ -28,7 +28,10 @@ file(GLOB C_CXX_FILES *.h *.cpp *.c *.hpp *.cxx ../../lib/*.h ../../lib/*.cpp ..
 ../3rdparty/libserialport/timing.c 
 ../3rdparty/libserialport/windows.c
 )
-add_executable(${PROJECT_NAME}  ${C_CXX_FILES})
+add_executable(${PROJECT_NAME}  ${C_CXX_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/window_resources.rc)
+if(MSVC)
+SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS    "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
+endif()
 target_link_libraries(${PROJECT_NAME} setupapi cfgmgr32 ole32)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../lib  ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/libserialport)
 #添加线程库
