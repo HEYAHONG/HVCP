@@ -9,6 +9,7 @@
 #include <windows.h>
 #include "service.h"
 #include <string>
+#include <vector>
 
 bool IsServiceMode=false;
 static int main_log(const char *fmt,...)
@@ -289,6 +290,11 @@ static bool check_com_port(const char *portname,int baudrate=115200,int databits
     if(portname==NULL || portname[0]=='\0')
     {
         return false;
+    }
+    if(HVCP_Exists(portname)==0)
+    {
+        //HVCP串口只检查是否存在，不检查其它参数
+        return true;
     }
     struct sp_port **port_list=NULL;
     sp_list_ports(&port_list);
@@ -873,22 +879,21 @@ static const char *get_config_id()
     return config_id;
 }
 
-static SERVICE_STATUS m_status= {0};
-static bool service_stop_pending=false;
-int main(int argc,const char * argv[])
+static void check_service_mode()
 {
-    arg_parse(argc,argv);
+    char username[256]= {0};
+    DWORD len=sizeof(username)-1;
+    GetUserNameA(username,&len);
+    if(strcmp(username,"SYSTEM")==0)
     {
-        char username[256]= {0};
-        DWORD len=sizeof(username)-1;
-        GetUserNameA(username,&len);
-        if(strcmp(username,"SYSTEM")==0)
-        {
-            //SYSTEM,服务模式
-            IsServiceMode=true;
-        }
-        main_log("User is %s,config_id is %s\r\n",username,get_config_id());
+        //SYSTEM,服务模式
+        IsServiceMode=true;
     }
+    main_log("User is %s,config_id is %s\r\n",username,get_config_id());
+}
+
+static int check_com_settings()
+{
     if(strlen(input_device)>0)
     {
         main_log("input_device is %s!\r\n",input_device);
@@ -896,7 +901,6 @@ int main(int argc,const char * argv[])
         {
             main_log("%s is HVCP Device!\r\n",input_device);
         }
-        else
         {
             main_log("input config:baudrate=%d,databits=%d,parity=%c,stopbits=%d\r\n",input_baudrate,input_databits,input_parity,input_stopbits);
             if(!check_com_port(input_device,input_baudrate,input_databits,input_parity,input_stopbits))
@@ -923,7 +927,6 @@ int main(int argc,const char * argv[])
         {
             main_log("%s is HVCP Device!\r\n",output_device);
         }
-        else
         {
             main_log("output config:baudrate=%d,databits=%d,parity=%c,stopbits=%d\r\n",output_baudrate,output_databits,output_parity,output_stopbits);
             if(!check_com_port(output_device,output_baudrate,output_databits,output_parity,output_stopbits))
@@ -938,115 +941,176 @@ int main(int argc,const char * argv[])
         main_log("output_device is not set!\r\n");
         return -1;
     }
-    if(!IsServiceMode)
+    return 0;
+}
+
+static std::vector<std::string> hvcp_portnames;
+static bool check_hvcp_port_removal()
+{
+    bool ret=true;
     {
-        if(uninstall_mode)
+        for(auto it=hvcp_portnames.begin(); it!=hvcp_portnames.end(); it++)
         {
-            main_log("service uninstall!\r\n");
-            if(!ServiceUnistall(get_config_id()))
+            if(HVCP_Exists((*it).c_str())!=0)
             {
-                main_log("service uninstall failed!\r\n");
+                ret=false;
+                main_log("%s removed!\r\n",(*it).c_str());
+                break;
             }
         }
-        else
+    }
+    return ret;
+}
+
+static SERVICE_STATUS m_status= {0};
+static bool service_stop_pending=false;
+static void ServiceMainEntry()
+{
+    auto ServiceMain=[](DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)->void
+    {
+        m_status.dwServiceType= SERVICE_WIN32_OWN_PROCESS;
+        m_status.dwCurrentState=SERVICE_START_PENDING;
+        m_status.dwControlsAccepted=SERVICE_ACCEPT_STOP;
+        auto Handler=[](DWORD dwOpcode)->void
         {
-            main_log("service install!\r\n");
-            if(ServiceIsInstalled(get_config_id()))
+            switch(dwOpcode)
             {
-                //服务已安装
-                if(!ServiceStart(get_config_id()))
-                {
-                    main_log("service not started!\r\n");
-                }
+            case SERVICE_CONTROL_STOP:
+            {
+                service_stop_pending=true;
+            }
+            break;
+            default:
+            {
 
             }
-            else
+            break;
+            }
+        };
+        SERVICE_STATUS_HANDLE hServiceStatusHandle=RegisterServiceCtrlHandlerA(get_config_id(),Handler);
+        if(hServiceStatusHandle==NULL)
+        {
+            main_log("handler not installed!");
+            return;
+        }
+        m_status.dwWin32ExitCode=S_OK;
+        SetServiceStatus(hServiceStatusHandle,&m_status);
+        {
+            //运行服务,应当是一个死循环，退出后服务退出。
             {
-                //服务未安装
-                std::string service_cmd;
+                //添加要检查的HVCP端口
+                if(HVCP_Exists(input_device)==0)
                 {
-                    CHAR file_path[_MAX_PATH]= {0};
-                    GetModuleFileNameA(NULL,file_path,sizeof(file_path)-1);
-                    service_cmd+=file_path;
+                    hvcp_portnames.push_back(input_device);
                 }
-                for(size_t i=1; i<argc; i++)
+                if(HVCP_Exists(output_device)==0)
                 {
-                    service_cmd+=" ";
-                    service_cmd+=argv[i];
-                }
-                main_log("service:name=%s,cmd=%s\r\n",get_config_id(),service_cmd.c_str());
-                if(!ServiceInstall(get_config_id(),"HVCP PortRedirect",service_cmd.c_str()))
-                {
-                    main_log("service install failed!\r\n");
-                }
-                else
-                {
-                    if(!ServiceStart(get_config_id()))
-                    {
-                        main_log("service not started!\r\n");
-                    }
+                    hvcp_portnames.push_back(output_device);
                 }
             }
+            m_status.dwCurrentState=SERVICE_RUNNING;
+            SetServiceStatus(hServiceStatusHandle,&m_status);
+            while(!service_stop_pending)
+            {
+                {
+                    //HVCP 端口移除后，相关服务也自动移除
+                    if(!check_hvcp_port_removal())
+                    {
+                        ServiceUnistall(get_config_id());
+                    }
+                }
+                Sleep(500);
+            }
+        }
+        m_status.dwCurrentState=SERVICE_STOPPED;
+        SetServiceStatus(hServiceStatusHandle,&m_status);
+
+    };
+    SERVICE_TABLE_ENTRY st[]=
+    {
+        {
+            (LPSTR)get_config_id(),ServiceMain
+        },
+        {
+            NULL,NULL
+        }
+    };
+    if(!StartServiceCtrlDispatcherA(st))
+    {
+        main_log("StartServiceCtrlDispatcher failed!\r\n");
+    }
+}
+
+static void ServiceMaintenance(int argc,const char *argv[])
+{
+    if(uninstall_mode)
+    {
+        main_log("service uninstall!\r\n");
+        if(!ServiceUnistall(get_config_id()))
+        {
+            main_log("service uninstall failed!\r\n");
         }
     }
     else
     {
-        auto ServiceMain=[](DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)->void
+        main_log("service install!\r\n");
+        if(ServiceIsInstalled(get_config_id()))
         {
-            m_status.dwServiceType= SERVICE_WIN32_OWN_PROCESS;
-            m_status.dwCurrentState=SERVICE_START_PENDING;
-            m_status.dwControlsAccepted=SERVICE_ACCEPT_STOP;
-            auto Handler=[](DWORD dwOpcode)->void
+            //服务已安装
+            if(!ServiceStart(get_config_id()))
             {
-                switch(dwOpcode)
-                {
-                case SERVICE_CONTROL_STOP:
-                {
-                    service_stop_pending=true;
-                }
-                break;
-                default:
-                {
+                main_log("service not started!\r\n");
+            }
 
-                }
-                break;
-                }
-            };
-            SERVICE_STATUS_HANDLE hServiceStatusHandle=RegisterServiceCtrlHandlerA(get_config_id(),Handler);
-            if(hServiceStatusHandle==NULL)
-            {
-                main_log("handler not installed!");
-                return;
-            }
-            m_status.dwWin32ExitCode=S_OK;
-            SetServiceStatus(hServiceStatusHandle,&m_status);
-            {
-                //运行服务,应当是一个死循环，退出后服务退出。
-                m_status.dwCurrentState=SERVICE_RUNNING;
-                SetServiceStatus(hServiceStatusHandle,&m_status);
-                while(!service_stop_pending)
-                {
-                    Sleep(500);
-                }
-            }
-            m_status.dwCurrentState=SERVICE_STOPPED;
-            SetServiceStatus(hServiceStatusHandle,&m_status);
-
-        };
-        SERVICE_TABLE_ENTRY st[]=
-        {
-            {
-                (LPSTR)get_config_id(),ServiceMain
-            },
-            {
-                NULL,NULL
-            }
-        };
-        if(!StartServiceCtrlDispatcherA(st))
-        {
-            main_log("StartServiceCtrlDispatcher failed!\r\n");
         }
+        else
+        {
+            //服务未安装
+            std::string service_cmd;
+            {
+                CHAR file_path[_MAX_PATH]= {0};
+                GetModuleFileNameA(NULL,file_path,sizeof(file_path)-1);
+                service_cmd+=file_path;
+            }
+            for(size_t i=1; i<argc; i++)
+            {
+                service_cmd+=" ";
+                service_cmd+=argv[i];
+            }
+            main_log("service:name=%s,cmd=%s\r\n",get_config_id(),service_cmd.c_str());
+            if(!ServiceInstall(get_config_id(),"HVCP PortRedirect",service_cmd.c_str()))
+            {
+                main_log("service install failed!\r\n");
+            }
+            else
+            {
+                if(!ServiceStart(get_config_id()))
+                {
+                    main_log("service not started!\r\n");
+                }
+            }
+        }
+    }
+}
 
+int main(int argc,const char * argv[])
+{
+    arg_parse(argc,argv);
+    check_service_mode();
+    if(!IsServiceMode)
+    {
+        if(check_com_settings()==0 || uninstall_mode)
+        {
+            ServiceMaintenance(argc,argv);
+        }
+        else
+        {
+            return -1;
+        }
+    }
+    else
+    {
+        ServiceMainEntry();
     }
     return 0;
 }
