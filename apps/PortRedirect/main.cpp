@@ -870,11 +870,11 @@ static const char *get_config_id()
 {
     if(strcmp(input_device,output_device) < 0)
     {
-        snprintf(config_id,sizeof(config_id)-1,"%s%d%d%c%d%s%d%d%c%d",input_device,input_baudrate,input_databits,input_parity,input_stopbits,output_device,output_baudrate,output_databits,output_parity,output_stopbits);
+        snprintf(config_id,sizeof(config_id)-1,"%s_To_%s",input_device,output_device);
     }
     else
     {
-        snprintf(config_id,sizeof(config_id)-1,"%s%d%d%c%d%s%d%d%c%d",output_device,output_baudrate,output_databits,output_parity,output_stopbits,input_device,input_baudrate,input_databits,input_parity,input_stopbits);
+        snprintf(config_id,sizeof(config_id)-1,"%s_To_%s",output_device,input_device);
     }
     return config_id;
 }
