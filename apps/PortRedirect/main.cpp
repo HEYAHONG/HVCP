@@ -1043,7 +1043,7 @@ static void ServiceMainEntry()
                         ServiceUnistall(get_config_id());
                     }
                 }
-                Sleep(500);
+                Sleep(10);
             }
         }
         m_status.dwCurrentState=SERVICE_STOPPED;

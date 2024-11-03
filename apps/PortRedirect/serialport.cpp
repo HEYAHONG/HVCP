@@ -101,7 +101,7 @@ size_t SerialPort::Read(void *buffer,size_t buffer_length)
     {
         return 0;
     }
-    int64_t ret=sp_blocking_read(port,buffer,buffer_length,500);
+    int64_t ret=sp_blocking_read(port,buffer,buffer_length,5);
     if(ret>=0)
     {
         return ret;
