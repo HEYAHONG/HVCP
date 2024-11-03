@@ -8,6 +8,7 @@
 #include <libserialport.h>
 #include <windows.h>
 #include "service.h"
+#include "serialport.h"
 #include <string>
 #include <vector>
 
@@ -997,6 +998,8 @@ static void ServiceMainEntry()
         SetServiceStatus(hServiceStatusHandle,&m_status);
         {
             //运行服务,应当是一个死循环，退出后服务退出。
+            SerialPort inputdev;
+            SerialPort outputdev;
             {
                 //添加要检查的HVCP端口
                 if(HVCP_Exists(input_device)==0)
@@ -1012,6 +1015,27 @@ static void ServiceMainEntry()
             SetServiceStatus(hServiceStatusHandle,&m_status);
             while(!service_stop_pending)
             {
+                {
+                    //打开设备
+                    inputdev.Open(input_device,input_baudrate,input_databits,input_parity,input_stopbits);
+                    outputdev.Open(output_device,output_baudrate,output_databits,output_parity,output_stopbits);
+                }
+                {
+                    uint8_t buffer[4096];
+                    size_t len=inputdev.Read(buffer,sizeof(buffer));
+                    if(len>0)
+                    {
+                        outputdev.Write(buffer,len);
+                    }
+                }
+                {
+                    uint8_t buffer[4096];
+                    size_t len=outputdev.Read(buffer,sizeof(buffer));
+                    if(len>0)
+                    {
+                        inputdev.Write(buffer,len);
+                    }
+                }
                 {
                     //HVCP 端口移除后，相关服务也自动移除
                     if(!check_hvcp_port_removal())
