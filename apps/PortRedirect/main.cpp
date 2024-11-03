@@ -967,12 +967,12 @@ static SERVICE_STATUS m_status= {0};
 static bool service_stop_pending=false;
 static void ServiceMainEntry()
 {
-    auto ServiceMain=[](DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)->void
+    auto ServiceMain=[](DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)->void WINAPI
     {
         m_status.dwServiceType= SERVICE_WIN32_OWN_PROCESS;
         m_status.dwCurrentState=SERVICE_START_PENDING;
         m_status.dwControlsAccepted=SERVICE_ACCEPT_STOP;
-        auto Handler=[](DWORD dwOpcode)->void
+        auto Handler=[](DWORD dwOpcode)->void WINAPI
         {
             switch(dwOpcode)
             {
