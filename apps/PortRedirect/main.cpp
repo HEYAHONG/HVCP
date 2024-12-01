@@ -4,6 +4,8 @@
 #include "stdarg.h"
 #include "string.h"
 #include "HVCP.h"
+#include "HCPPBox.h"
+#include "hbox.h"
 #include <thread>
 #include <libserialport.h>
 #include <windows.h>
@@ -965,91 +967,91 @@ static bool check_hvcp_port_removal()
 
 static SERVICE_STATUS m_status= {0};
 static bool service_stop_pending=false;
+static void WINAPI Handler(DWORD dwOpcode)
+{
+    switch(dwOpcode)
+    {
+    case SERVICE_CONTROL_STOP:
+    {
+        service_stop_pending=true;
+    }
+    break;
+    default:
+    {
+
+    }
+    break;
+    }
+};
+static void WINAPI ServiceMain(DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)
+{
+    m_status.dwServiceType= SERVICE_WIN32_OWN_PROCESS;
+    m_status.dwCurrentState=SERVICE_START_PENDING;
+    m_status.dwControlsAccepted=SERVICE_ACCEPT_STOP;
+    SERVICE_STATUS_HANDLE hServiceStatusHandle=RegisterServiceCtrlHandlerA(get_config_id(),Handler);
+    if(hServiceStatusHandle==NULL)
+    {
+        main_log("handler not installed!");
+        return;
+    }
+    m_status.dwWin32ExitCode=S_OK;
+    SetServiceStatus(hServiceStatusHandle,&m_status);
+    {
+        //运行服务,应当是一个死循环，退出后服务退出。
+        SerialPort inputdev;
+        SerialPort outputdev;
+        {
+            //添加要检查的HVCP端口
+            if(HVCP_Exists(input_device)==0)
+            {
+                hvcp_portnames.push_back(input_device);
+            }
+            if(HVCP_Exists(output_device)==0)
+            {
+                hvcp_portnames.push_back(output_device);
+            }
+        }
+        m_status.dwCurrentState=SERVICE_RUNNING;
+        SetServiceStatus(hServiceStatusHandle,&m_status);
+        while(!service_stop_pending)
+        {
+            {
+                //打开设备
+                inputdev.Open(input_device,input_baudrate,input_databits,input_parity,input_stopbits);
+                outputdev.Open(output_device,output_baudrate,output_databits,output_parity,output_stopbits);
+            }
+            {
+                uint8_t buffer[4096];
+                size_t len=inputdev.Read(buffer,sizeof(buffer));
+                if(len>0)
+                {
+                    outputdev.Write(buffer,len);
+                }
+            }
+            {
+                uint8_t buffer[4096];
+                size_t len=outputdev.Read(buffer,sizeof(buffer));
+                if(len>0)
+                {
+                    inputdev.Write(buffer,len);
+                }
+            }
+            {
+                //HVCP 端口移除后，相关服务也自动移除
+                if(!check_hvcp_port_removal())
+                {
+                    ServiceUnistall(get_config_id());
+                }
+            }
+            Sleep(10);
+        }
+    }
+    m_status.dwCurrentState=SERVICE_STOPPED;
+    SetServiceStatus(hServiceStatusHandle,&m_status);
+
+};
 static void ServiceMainEntry()
 {
-    auto ServiceMain=[](DWORD dwNumServicesArgs,LPSTR *lpServiceArgVectors)->void WINAPI
-    {
-        m_status.dwServiceType= SERVICE_WIN32_OWN_PROCESS;
-        m_status.dwCurrentState=SERVICE_START_PENDING;
-        m_status.dwControlsAccepted=SERVICE_ACCEPT_STOP;
-        auto Handler=[](DWORD dwOpcode)->void WINAPI
-        {
-            switch(dwOpcode)
-            {
-            case SERVICE_CONTROL_STOP:
-            {
-                service_stop_pending=true;
-            }
-            break;
-            default:
-            {
-
-            }
-            break;
-            }
-        };
-        SERVICE_STATUS_HANDLE hServiceStatusHandle=RegisterServiceCtrlHandlerA(get_config_id(),Handler);
-        if(hServiceStatusHandle==NULL)
-        {
-            main_log("handler not installed!");
-            return;
-        }
-        m_status.dwWin32ExitCode=S_OK;
-        SetServiceStatus(hServiceStatusHandle,&m_status);
-        {
-            //运行服务,应当是一个死循环，退出后服务退出。
-            SerialPort inputdev;
-            SerialPort outputdev;
-            {
-                //添加要检查的HVCP端口
-                if(HVCP_Exists(input_device)==0)
-                {
-                    hvcp_portnames.push_back(input_device);
-                }
-                if(HVCP_Exists(output_device)==0)
-                {
-                    hvcp_portnames.push_back(output_device);
-                }
-            }
-            m_status.dwCurrentState=SERVICE_RUNNING;
-            SetServiceStatus(hServiceStatusHandle,&m_status);
-            while(!service_stop_pending)
-            {
-                {
-                    //打开设备
-                    inputdev.Open(input_device,input_baudrate,input_databits,input_parity,input_stopbits);
-                    outputdev.Open(output_device,output_baudrate,output_databits,output_parity,output_stopbits);
-                }
-                {
-                    uint8_t buffer[4096];
-                    size_t len=inputdev.Read(buffer,sizeof(buffer));
-                    if(len>0)
-                    {
-                        outputdev.Write(buffer,len);
-                    }
-                }
-                {
-                    uint8_t buffer[4096];
-                    size_t len=outputdev.Read(buffer,sizeof(buffer));
-                    if(len>0)
-                    {
-                        inputdev.Write(buffer,len);
-                    }
-                }
-                {
-                    //HVCP 端口移除后，相关服务也自动移除
-                    if(!check_hvcp_port_removal())
-                    {
-                        ServiceUnistall(get_config_id());
-                    }
-                }
-                Sleep(10);
-            }
-        }
-        m_status.dwCurrentState=SERVICE_STOPPED;
-        SetServiceStatus(hServiceStatusHandle,&m_status);
-
-    };
     SERVICE_TABLE_ENTRY st[]=
     {
         {

@@ -39,6 +39,13 @@ find_package(Threads REQUIRED)
 target_link_libraries(${PROJECT_NAME}  ${CMAKE_THREAD_LIBS_INIT})
 target_compile_options(${PROJECT_NAME} PUBLIC -DLIBSERIALPORT_MSBUILD=1)
 
+#添加3rdparty/HCppBox
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/HCppBox/master HCppBox EXCLUDE_FROM_ALL)
+#启用HCppBox、HRC
+hcppbox_enable(${PROJECT_NAME})
+hrc_enable(${PROJECT_NAME})
+
+
 include(GNUInstallDirs)
 install(
 	TARGETS ${PROJECT_NAME}
