@@ -6,6 +6,7 @@
 #include "HVCP.h"
 #include "HCPPBox.h"
 #include "hbox.h"
+#include "hrc.h"
 #include <thread>
 #include <libserialport.h>
 #include <windows.h>
@@ -157,6 +158,14 @@ static int cmd_help(int argc,const char *argv[])
 {
     const size_t cmd_max_len=16;
     const size_t usage_max_len=50;
+    {
+        //打印banner
+        const char *banner=(const char *)RCGetHandle("banner");
+        if(banner!=NULL)
+        {
+            printf("%s",banner);
+        }
+    }
     {
         main_log("\r\n%s [options]\r\n",argv[0]);
     }
