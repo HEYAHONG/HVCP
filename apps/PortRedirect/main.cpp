@@ -12,10 +12,17 @@
 #include <windows.h>
 #include "service.h"
 #include "serialport.h"
+#include "modbusrtu.h"
 #include <string>
 #include <vector>
 
-bool IsServiceMode=false;
+static enum
+{
+    MODE_SERIAL_TO_SERIAL=0,
+    MODE_MODBUS_TO_SERIAL
+
+} WorkMode=MODE_SERIAL_TO_SERIAL;
+static bool IsServiceMode=false;
 static int main_log(const char *fmt,...)
 {
     int ret=0;
@@ -421,7 +428,17 @@ static int cmd_input(int argc,const char *argv[])
         }
 
     }
-    com_name_strip(input_device);
+    if(strcmp("modbus",input_device)==0)
+    {
+
+        //切换为modbus
+        WorkMode=MODE_MODBUS_TO_SERIAL;
+        return 0;
+    }
+    else
+    {
+        com_name_strip(input_device);
+    }
     return 0;
 }
 
@@ -913,13 +930,24 @@ static int check_com_settings()
         {
             main_log("%s is HVCP Device!\r\n",input_device);
         }
+        switch(WorkMode)
         {
+        case MODE_MODBUS_TO_SERIAL:
+        {
+            main_log("input config:modbus rtu\r\n");
+        }
+        break;
+        default:
+        {
+            //数据转发
             main_log("input config:baudrate=%d,databits=%d,parity=%c,stopbits=%d\r\n",input_baudrate,input_databits,input_parity,input_stopbits);
             if(!check_com_port(input_device,input_baudrate,input_databits,input_parity,input_stopbits))
             {
                 main_log("check %s port failed!\r\n",input_device);
                 return -1;
             }
+        }
+        break;
         }
     }
     else
@@ -929,23 +957,41 @@ static int check_com_settings()
     }
     if(strlen(output_device)>0)
     {
-        if(strcmp(strstr(input_device,"COM"),strstr(output_device,"COM"))==0)
         {
-            main_log("output_device can not be input_device!\r\n",output_device);
-            return -1;
+            const char *in_com=strstr(input_device,"COM");
+            if(in_com==NULL)
+            {
+                in_com="COM0";
+            }
+            const char *out_com=strstr(output_device,"COM");
+            if(out_com==NULL)
+            {
+                out_com="COM0";
+            }
+            if(strcmp(in_com,out_com)==0)
+            {
+                main_log("output_device can not be input_device!\r\n",output_device);
+                return -1;
+            }
         }
         main_log("output_device is %s!\r\n",output_device);
         if(HVCP_Exists(output_device)==0)
         {
             main_log("%s is HVCP Device!\r\n",output_device);
         }
+        switch(WorkMode)
         {
+        default:
+        {
+            //数据转发
             main_log("output config:baudrate=%d,databits=%d,parity=%c,stopbits=%d\r\n",output_baudrate,output_databits,output_parity,output_stopbits);
             if(!check_com_port(output_device,output_baudrate,output_databits,output_parity,output_stopbits))
             {
                 main_log("check %s port failed!\r\n",output_device);
                 return -1;
             }
+        }
+        break;
         }
     }
     else
@@ -1007,8 +1053,6 @@ static void WINAPI ServiceMain(DWORD dwNumServicesArgs,LPSTR *lpServiceArgVector
     SetServiceStatus(hServiceStatusHandle,&m_status);
     {
         //运行服务,应当是一个死循环，退出后服务退出。
-        SerialPort inputdev;
-        SerialPort outputdev;
         {
             //添加要检查的HVCP端口
             if(HVCP_Exists(input_device)==0)
@@ -1024,26 +1068,64 @@ static void WINAPI ServiceMain(DWORD dwNumServicesArgs,LPSTR *lpServiceArgVector
         SetServiceStatus(hServiceStatusHandle,&m_status);
         while(!service_stop_pending)
         {
+            switch(WorkMode)
             {
-                //打开设备
-                inputdev.Open(input_device,input_baudrate,input_databits,input_parity,input_stopbits);
+            case MODE_MODBUS_TO_SERIAL:
+            {
+                static modbus_rtu_slave_tiny_context_t ctx= {0};
+                static SerialPort outputdev;
                 outputdev.Open(output_device,output_baudrate,output_databits,output_parity,output_stopbits);
-            }
-            {
-                uint8_t buffer[4096];
-                size_t len=inputdev.Read(buffer,sizeof(buffer));
-                if(len>0)
+                if(ctx.addr==0)
                 {
-                    outputdev.Write(buffer,len);
+                    modbus_init_ctx(&ctx);
+                    ctx.usr=&outputdev;
+                    ctx.reply=[](modbus_rtu_slave_tiny_context_t* ctx,const uint8_t *adu,size_t adu_length)
+                    {
+                        if(ctx!=NULL && ctx->usr!=NULL)
+                        {
+                            SerialPort &outputdev=*(SerialPort *)ctx->usr;
+                            outputdev.Write(adu,adu_length);
+                        }
+                    };
+                }
+                {
+                    uint8_t buffer[4096];
+                    size_t len=outputdev.Read(buffer,sizeof(buffer));
+                    if(len>0)
+                    {
+                        modbus_rtu_slave_tiny_parse_input(&ctx,buffer,len);
+                    }
                 }
             }
+            break;
+            default:
             {
-                uint8_t buffer[4096];
-                size_t len=outputdev.Read(buffer,sizeof(buffer));
-                if(len>0)
+                //数据转发
+                static SerialPort inputdev;
+                static SerialPort outputdev;
                 {
-                    inputdev.Write(buffer,len);
+                    //打开设备
+                    inputdev.Open(input_device,input_baudrate,input_databits,input_parity,input_stopbits);
+                    outputdev.Open(output_device,output_baudrate,output_databits,output_parity,output_stopbits);
                 }
+                {
+                    uint8_t buffer[4096];
+                    size_t len=inputdev.Read(buffer,sizeof(buffer));
+                    if(len>0)
+                    {
+                        outputdev.Write(buffer,len);
+                    }
+                }
+                {
+                    uint8_t buffer[4096];
+                    size_t len=outputdev.Read(buffer,sizeof(buffer));
+                    if(len>0)
+                    {
+                        inputdev.Write(buffer,len);
+                    }
+                }
+            }
+            break;
             }
             {
                 //HVCP 端口移除后，相关服务也自动移除
